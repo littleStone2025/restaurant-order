@@ -1,5 +1,5 @@
 # 将所有 /api 请求代理到 Railway 后端
-/api/*  https://restaurant-order-production-3088.up.railway.app/api/:splat  200
+/api/*  https://restaurant-order-production-4577.up.railway.app/api/:splat  200
 
 # SPA 回退（确保前端路由正常工作）
 /*    /index.html   200
