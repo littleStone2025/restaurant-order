@@ -1,10 +1,13 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
+# 安装 node-gyp 编译所需的构建工具
+RUN apk add --no-cache python3 make g++
+
 # 安装依赖（利用缓存）
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # 复制源代码
 COPY . .
