@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>味道鲜 · 商家后台</title>
+<style>
+  :root { --primary: #e8562a; --primary-dark: #c44220; --primary-light: #fdf0eb; --bg: #f8f7f5; --card: #fff; --text: #1a1a1a; --muted: #888; --border: #ebebeb; --success: #2ecc71; --danger: #e74c3c; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .admin-layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: #fff; border-right: 1px solid var(--border); padding: 24px 0; flex-shrink: 0; }
+  .sidebar-logo { font-size: 18px; font-weight: 700; color: var(--primary); padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; cursor: pointer; font-size: 14px; color: var(--muted); transition: all 0.2s; border-left: 3px solid transparent; }
+  .sidebar-item:hover, .sidebar-item.active { background: var(--primary-light); color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+  .main { flex: 1; padding: 32px; overflow-y: auto; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .page-title { font-size: 24px; font-weight: 700; }
+  .card { background: var(--card); border-radius: 16px; padding: 24px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); margin-bottom: 24px; }
+  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
+  .stat-value.green { color: var(--success); }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 12px; font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--border); }
+  td { padding: 12px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: var(--primary-light); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.pending { background: #fff3cd; color: #856404; }
+  .badge.cooking { background: #d1ecf1; color: #0c5460; }
+  .badge.done { background: #d4edda; color: #155724; }
+  .badge.paid { background: #d4edda; color: #155724; }
+  .badge.unpaid { background: #fff3cd; color: #856404; }
+  .btn { padding: 6px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-outline { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .form-input, .form-select, .form-textarea { border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.2s; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+  .form-textarea { resize: vertical; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: #fff; border-radius: 20px; max-width: 560px; width: 90%; max-height: 88vh; overflow-y: auto; transform: scale(0.92); transition: transform 0.25s; }
+  .modal-overlay.open .modal { transform: scale(1); }
+  .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 700; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--muted); }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px); background: rgba(26,26,26,0.9); color: #fff; padding: 12px 24px; border-radius: 30px; font-size: 14px; z-index: 300; transition: transform 0.3s; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { background: rgba(231,76,60,0.95); }
+  .toast.success { background: rgba(46,204,113,0.95); }
+  .empty-state { text-align: center; padding: 48px; color: var(--muted); }
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .login-card { background: #fff; border-radius: 24px; padding: 48px; width: 400px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); text-align: center; }
+  .login-logo { font-size: 48px; margin-bottom: 12px; }
+  .login-title { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 32px; }
+  .login-form { display: flex; flex-direction: column; gap: 16px; }
+  .login-form input { width: 100%; padding: 12px 16px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 15px; outline: none; text-align: center; }
+  .login-form input:focus { border-color: var(--primary); }
+  .login-btn { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .login-btn:hover { background: var(--primary-dark); }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip { background: #f0f0f0; padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+  [v-cloak] { display: none; }
+  @media (max-width: 768px) { .admin-layout { flex-direction: column; } .sidebar { width: 100%; display: flex; overflow-x: auto; padding: 0; } .sidebar-logo { display: none; } .sidebar-item { flex-direction: column; gap: 2px; padding: 8px 14px; font-size: 11px; white-space: nowrap; } }
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-card">
+    <div class="login-logo">🍜</div>
+    <div class="login-title">味道鲜 · 商家后台</div>
+    <div class="login-form">
+      <input type="text" id="loginUser" placeholder="账号" value="admin" />
+      <input type="password" id="loginPass" placeholder="密码" value="admin123" />
+      <button class="login-btn" onclick="handleLogin()">登 录</button>
+    </div>
+    <p style="margin-top:16px;font-size:13px;color:var(--muted)">测试账号：admin / admin123</p>
+  </div>
+</div>
+
+<!-- 后台主页 -->
+<div class="admin-layout" id="adminPage" style="display:none">
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">🍜 味道鲜</div>
+    <div class="sidebar-item active" onclick="switchTab('dashboard')" data-tab="dashboard">📊 数据概览</div>
+    <div class="sidebar-item" onclick="switchTab('orders')" data-tab="orders">📋 订单管理</div>
+    <div class="sidebar-item" onclick="switchTab('dishes')" data-tab="dishes">🍽️ 菜品管理</div>
+    <div class="sidebar-item" onclick="switchTab('categories')" data-tab="categories">📂 分类管理</div>
+    <div class="sidebar-item" onclick="handleLogout()" style="margin-top:auto;color:var(--danger)">🚪 退出登录</div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <!-- 数据概览 -->
+    <div id="page-dashboard">
+      <div class="page-header">
+        <div class="page-title">📊 数据概览</div>
+        <button class="btn btn-outline btn-sm" onclick="loadStats()">🔄 刷新</button>
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div class="card">
+        <div class="card-title">🏃 今日待处理订单</div>
+        <table id="pendingOrdersTable"><thead><tr><th>订单号</th><th>桌号</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr></thead><tbody id="pendingOrdersBody"></tbody></table>
+        <div class="empty-state" id="pendingEmpty">暂无待处理订单 🎉</div>
+      </div>
+    </div>
+
+    <!-- 订单管理 -->
+    <div id="page-orders" style="display:none">
+      <div class="page-header">
+        <div class="page-title">📋 订单管理</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="form-select" id="orderStatusFilter" onchange="loadOrders()">
+            <option value="">全部状态</option>
+            <option value="pending">待处理</option>
+            <option value="cooking">烹饪中</option>
+            <option value="done">已完成</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="loadOrders()">🔄 刷新</button>
+        </div>
+      </div>
+      <div class="card">
+        <table><thead><tr><th>订单号</th><th>桌号</th><th>金额</th><th>支付状态</th><th>订单状态</th><th>时间</th><th>操作</th></tr></thead><tbody id="ordersBody"></tbody></table>
+        <div class="empty-state" id="ordersEmpty">暂无订单</div>
+      </div>
+    </div>
+
+    <!-- 菜品管理 -->
+    <div id="page-dishes" style="display:none">
+      <div class="page-header">
+        <div class="page-title">🍽️ 菜品管理</div>
+        <button class="btn btn-primary" onclick="openDishModal()">+ 新增菜品</button>
+      </div>
+      <div class="card">
+        <table><thead><tr><th>ID</th><th>名称</th><th>分类</th><th>价格</th><th>角标</th><th>状态</th><th>操作</th></tr></thead><tbody id="dishesBody"></tbody></table>
+        <div class="empty-state">暂无菜品</div>
+      </div>
+    </div>
+
+    <!-- 分类管理 -->
+    <div id="page-categories" style="display:none">
+      <div class="page-header">
+        <div class="page-title">📂 分类管理</div>
+        <button class="btn btn-primary" onclick="openCatModal()">+ 新增分类</button>
+      </div>
+      <div class="card">
+        <table><thead><tr><th>ID</th><th>名称</th><th>图标</th><th>排序</th><th>菜品数</th><th>操作</th></tr></thead><tbody id="catsBody"></tbody></table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 菜品编辑弹窗 -->
+<div class="modal-overlay" id="dishModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="dishModalTitle">新增菜品</span>
+      <button class="modal-close" onclick="closeDishModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="dishId" />
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">菜品名称 *</div>
+          <input class="form-input" id="dishName" placeholder="如：招牌红烧肉" />
+        </div>
+        <div class="form-group">
+          <div class="form-label">分类 *</div>
+          <select class="form-select" id="dishCat"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">价格（元）*</div>
+          <input class="form-input" id="dishPrice" type="number" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <div class="form-label">Emoji 图标</div>
+          <input class="form-input" id="dishEmoji" placeholder="🍽️" />
+        </div>
+        <div class="form-group">
+          <div class="form-label">角标</div>
+          <select class="form-select" id="dishBadge">
+            <option value="">无</option>
+            <option value="hot">🔥热销</option>
+            <option value="new">🆕新品</option>
+            <option value="rec">👍推荐</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">描述</div>
+        <textarea class="form-textarea" id="dishDesc" rows="2" placeholder="简短描述菜品特色..."></textarea>
+      </div>
+      <div class="form-group">
+        <div class="form-label">标签（逗号分隔）</div>
+        <input class="form-input" id="dishTags" placeholder="招牌,辣,下饭" />
+      </div>
+      <div class="form-group">
+        <div class="form-label">状态</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+          <input type="checkbox" id="dishAvailable" checked /> 上架中
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeDishModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveDish()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分类编辑弹窗 -->
+<div class="modal-overlay" id="catModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="catModalTitle">新增分类</span>
+      <button class="modal-close" onclick="closeCatModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="catId" />
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">分类名称 *</div>
+          <input class="form-input" id="catName" placeholder="如：主菜热炒" />
+        </div>
+        <div class="form-group">
+          <div class="form-label">Emoji 图标 *</div>
+          <input class="form-input" id="catEmoji" placeholder="🍳" />
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">排序（数字越小越靠前）</div>
+        <input class="form-input" id="catOrder" type="number" value="0" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCatModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveCat()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = location.origin + '/api';
+let token = localStorage.getItem('admin_token') || '';
+let currentTab = 'dashboard';
+let allCategories = [];
+
+// =========== 工具 ===========
+function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  return fetch(API + path, { ...opts, headers }).then(r => r.json());
+}
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =========== 登录 ===========
+function handleLogin() {
+  const username = document.getElementById('loginUser').value;
+  const password = document.getElementById('loginPass').value;
+  api('/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  }).then(res => {
+    if (res.code !== 0) { toast('登录失败: ' + res.msg, 'error'); return; }
+    token = res.data.token;
+    localStorage.setItem('admin_token', token);
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('adminPage').style.display = 'flex';
+    loadStats();
+    loadCategories();
+  });
+}
+
+function handleLogout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  document.getElementById('adminPage').style.display = 'none';
+  document.getElementById('loginPage').style.display = 'flex';
+}
+
+// =========== 页面切换 ===========
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.sidebar-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+  ['dashboard','orders','dishes','categories'].forEach(t => {
+    document.getElementById('page-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'orders') loadOrders();
+  if (tab === 'dishes') loadDishes();
+  if (tab === 'categories') loadCategories();
+}
+
+// =========== 数据加载 ===========
+async function loadStats() {
+  const res = await api('/admin/stats');
+  if (res.code !== 0) return;
+  const s = res.data;
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="stat-label">今日订单</div><div class="stat-value">${s.todayOrders.c}</div><div class="stat-sub">¥${parseFloat(s.todayOrders.amount).toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">累计订单</div><div class="stat-value">${s.totalOrders.c}</div><div class="stat-sub">¥${parseFloat(s.totalOrders.amount).toFixed(2)}</div></div>
+    <div class="stat-card"><div class="stat-label">待处理订单</div><div class="stat-value" style="color:var(--danger)">${s.pendingOrders.c}</div><div class="stat-sub">需关注</div></div>
+    <div class="stat-card"><div class="stat-label">菜品总数</div><div class="stat-value green">${s.totalDishes.c}</div><div class="stat-sub">${s.totalCategories.c} 个分类</div></div>
+  `;
+
+  // 加载待处理订单
+  const ordersRes = await api('/admin/orders?status=cooking&pageSize=10');
+  if (ordersRes.code === 0 && ordersRes.data.list.length) {
+    document.getElementById('pendingOrdersBody').innerHTML = ordersRes.data.list.map(o => orderRow(o, true)).join('');
+    document.getElementById('pendingEmpty').style.display = 'none';
+  } else {
+    document.getElementById('pendingOrdersBody').innerHTML = '';
+    document.getElementById('pendingEmpty').style.display = 'block';
+  }
+}
+
+async function loadOrders() {
+  const filter = document.getElementById('orderStatusFilter').value;
+  const res = await api('/admin/orders?status=' + filter + '&pageSize=50');
+  if (res.code !== 0) return;
+  const list = res.data.list;
+  if (!list.length) {
+    document.getElementById('ordersBody').innerHTML = '';
+    document.getElementById('ordersEmpty').style.display = 'block';
+    return;
+  }
+  document.getElementById('ordersEmpty').style.display = 'none';
+  document.getElementById('ordersBody').innerHTML = list.map(o => orderRow(o, false)).join('');
+}
+
+function orderRow(o, mini) {
+  const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+  const names = items.map(i => i.name + '×' + i.qty).join('、');
+  const act = mini
+    ? `<button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')">完成</button>`
+    : `<button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')" ${o.status==='done'?'disabled':''}>完成</button>`;
+  return `<tr>
+    <td><b>${o.order_id}</b><br><small style="color:var(--muted)">${names.slice(0,30)}${names.length>30?'...':''}</small></td>
+    <td>${o.table_no}号桌</td>
+    <td><b style="color:var(--primary)">¥${parseFloat(o.total).toFixed(2)}</b></td>
+    <td><span class="badge ${o.pay_status}">${o.pay_status === 'paid' ? '✅已付' : '⏳未付'}</span></td>
+    <td><span class="badge ${o.status}">${statusText(o.status)}</span></td>
+    <td><small>${o.created_at?.slice(0,16)||''}</small></td>
+    <td>${act}</td>
+  </tr>`;
+}
+
+function statusText(s) {
+  return { pending: '待处理', cooking: '烹饪中', done: '已完成', cancelled: '已取消' }[s] || s;
+}
+
+async function updateOrderStatus(orderId, status) {
+  const res = await api('/orders/' + orderId + '/status', { method: 'PATCH', body: JSON.stringify({ status }) });
+  if (res.code !== 0) { toast('更新失败: ' + res.msg, 'error'); return; }
+  toast('状态已更新为：' + statusText(status), 'success');
+  loadStats();
+  if (currentTab === 'orders') loadOrders();
+}
+
+async function loadDishes() {
+  const res = await api('/admin/dishes');
+  if (res.code !== 0) return;
+  allCategories = (await api('/categories')).data || [];
+  const catMap = {};
+  allCategories.forEach(c => catMap[c.id] = c.name);
+  document.getElementById('dishesBody').innerHTML = res.data.map(d => `<tr>
+    <td>${d.id}</td>
+    <td>${d.emoji||'🍽️'} ${d.name}</td>
+    <td>${catMap[d.category_id]||'-'}</td>
+    <td>¥${parseFloat(d.price).toFixed(2)}</td>
+    <td>${d.badge ? badgeText(d.badge) : '-'}</td>
+    <td><span class="badge ${d.is_available?'paid':'unpaid'}">${d.is_available?'上架':'下架'}</span></td>
+    <td>
+      <button class="btn btn-outline btn-sm" onclick="editDish(${d.id})">编辑</button>
+      <button class="btn btn-danger btn-sm" onclick="toggleDish(${d.id},${d.is_available?0:1})">${d.is_available?'下架':'上架'}</button>
+    </td>
+  </tr>`).join('');
+}
+
+function badgeText(b) {
+  return { hot:'🔥热销', new:'🆕新品', rec:'👍推荐' }[b]||'';
+}
+
+async function loadCategories() {
+  const res = await api('/categories');
+  if (res.code !== 0) return;
+  document.getElementById('catsBody').innerHTML = res.data.map(c => `<tr>
+    <td>${c.id}</td>
+    <td>${c.emoji||''} ${c.name}</td>
+    <td>${c.emoji||'-'}</td>
+    <td>${c.sort_order}</td>
+    <td>${c.dish_count}</td>
+    <td>
+      <button class="btn btn-outline btn-sm" onclick="editCat(${c.id})">编辑</button>
+    </td>
+  </tr>`).join('');
+}
+
+// =========== 菜品弹窗 ===========
+function openDishModal(id) {
+  document.getElementById('dishId').value = id || '';
+  document.getElementById('dishModalTitle').textContent = id ? '编辑菜品' : '新增菜品';
+  if (!id) {
+    ['dishName','dishPrice','dishEmoji','dishDesc','dishTags'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('dishBadge').value = '';
+    document.getElementById('dishAvailable').checked = true;
+    document.getElementById('dishCat').value = '';
+  }
+  document.getElementById('dishCat').innerHTML = allCategories.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  document.getElementById('dishModal').classList.add('open');
+}
+
+async function editDish(id) {
+  await loadCategories();
+  const dishes = (await api('/admin/dishes')).data || [];
+  const d = dishes.find(x => x.id === id);
+  if (!d) return;
+  openDishModal(id);
+  document.getElementById('dishCat').innerHTML = allCategories.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  document.getElementById('dishName').value = d.name;
+  document.getElementById('dishCat').value = d.category_id;
+  document.getElementById('dishPrice').value = d.price;
+  document.getElementById('dishEmoji').value = d.emoji || '';
+  document.getElementById('dishBadge').value = d.badge || '';
+  document.getElementById('dishDesc').value = d.description || '';
+  document.getElementById('dishTags').value = (d.tags || []).join(',');
+  document.getElementById('dishAvailable').checked = !!d.is_available;
+}
+
+function closeDishModal() { document.getElementById('dishModal').classList.remove('open'); }
+
+async function saveDish() {
+  const id = document.getElementById('dishId').value;
+  const payload = {
+    category_id: parseInt(document.getElementById('dishCat').value),
+    name: document.getElementById('dishName').value.trim(),
+    price: parseFloat(document.getElementById('dishPrice').value),
+    emoji: document.getElementById('dishEmoji').value.trim() || '🍽️',
+    badge: document.getElementById('dishBadge').value || null,
+    description: document.getElementById('dishDesc').value.trim(),
+    tags: document.getElementById('dishTags').value.split(',').map(t => t.trim()).filter(Boolean),
+    is_available: document.getElementById('dishAvailable').checked ? 1 : 0,
+  };
+  if (!payload.name || !payload.category_id || isNaN(payload.price)) {
+    toast('请填写必填项（名称、分类、价格）', 'error'); return;
+  }
+  const method = id ? 'PUT' : 'POST';
+  const path = id ? '/admin/dishes/' + id : '/admin/dishes';
+  const res = await api(path, { method, body: JSON.stringify(payload) });
+  if (res.code !== 0) { toast('保存失败: ' + res.msg, 'error'); return; }
+  toast('保存成功！', 'success');
+  closeDishModal();
+  loadDishes();
+}
+
+async function toggleDish(id, available) {
+  const res = await api('/admin/dishes/' + id, { method: 'PUT', body: JSON.stringify({ is_available: available }) });
+  if (res.code !== 0) { toast('操作失败', 'error'); return; }
+  toast(available ? '已上架' : '已下架', 'success');
+  loadDishes();
+}
+
+// =========== 分类弹窗 ===========
+function openCatModal(id) {
+  document.getElementById('catId').value = id || '';
+  document.getElementById('catModalTitle').textContent = id ? '编辑分类' : '新增分类';
+  if (!id) {
+    document.getElementById('catName').value = '';
+    document.getElementById('catEmoji').value = '';
+    document.getElementById('catOrder').value = '0';
+  }
+  document.getElementById('catModal').classList.add('open');
+}
+
+async function editCat(id) {
+  const cats = (await api('/categories')).data || [];
+  const c = cats.find(x => x.id === id);
+  if (!c) return;
+  openCatModal(id);
+  document.getElementById('catName').value = c.name;
+  document.getElementById('catEmoji').value = c.emoji || '';
+  document.getElementById('catOrder').value = c.sort_order || 0;
+}
+
+function closeCatModal() { document.getElementById('catModal').classList.remove('open'); }
+
+async function saveCat() {
+  const id = document.getElementById('catId').value;
+  const payload = {
+    name: document.getElementById('catName').value.trim(),
+    emoji: document.getElementById('catEmoji').value.trim(),
+    sort_order: parseInt(document.getElementById('catOrder').value) || 0,
+  };
+  if (!payload.name || !payload.emoji) { toast('请填写名称和图标', 'error'); return; }
+  const method = id ? 'PUT' : 'POST';
+  const path = id ? '/admin/categories/' + id : '/admin/categories';
+  const res = await api(path, { method, body: JSON.stringify(payload) });
+  if (res.code !== 0) { toast('保存失败: ' + res.msg, 'error'); return; }
+  toast('保存成功！', 'success');
+  closeCatModal();
+  loadCategories();
+}
+
+// =========== 启动检查 ===========
+if (token) {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('adminPage').style.display = 'flex';
+  loadStats();
+  loadCategories();
+}
+</script>
+</body>
+</html>

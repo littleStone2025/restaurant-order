@@ -1,0 +1,29 @@
+# docker-compose.yml — 味道鲜餐厅点单系统
+version: '3.8'
+services:
+  restaurant-api:
+    build: .
+    container_name: weidaxian-restaurant
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # 微信支付配置（生产环境从环境变量注入）
+      - WX_MCHID=${WX_MCHID:-}
+      - WX_APPID=${WX_APPID:-}
+      - WX_APPSECRET=${WX_APPSECRET:-}
+      - WX_SERIAL_NO=${WX_SERIAL_NO:-}
+      - WX_PRIVATE_KEY_PATH=${WX_PRIVATE_KEY_PATH:-}
+      - WX_PLATFORM_CERT_PATH=${WX_PLATFORM_CERT_PATH:-}
+      - WX_PAY_NOTIFY_URL=${WX_PAY_NOTIFY_URL:-}
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+    volumes:
+      - ./data:/app/data          # SQLite 数据持久化
+      - ./certs:/app/certs:ro     # 微信证书（只读）
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

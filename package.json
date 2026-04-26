@@ -1,0 +1,27 @@
+{
+  "name": "restaurant-order",
+  "version": "1.0.0",
+  "description": "",
+  "main": "gen_prd.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.15.2",
+    "better-sqlite3": "^12.9.0",
+    "cors": "^2.8.6",
+    "docx": "^9.6.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "uuid": "^14.0.0"
+  }
+}
