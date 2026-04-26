@@ -60,6 +60,54 @@
   .toast.error { background: rgba(231,76,60,0.95); }
   .toast.success { background: rgba(46,204,113,0.95); }
   .empty-state { text-align: center; padding: 48px; color: var(--muted); }
+  
+  /* 图片上传样式 */
+  .image-upload-wrap {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafafa;
+  }
+  .image-upload-wrap:hover {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+  .image-upload-wrap.has-image {
+    border-style: solid;
+    padding: 10px;
+  }
+  .image-upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .image-upload-text { font-size: 13px; color: var(--muted); }
+  .image-preview {
+    max-width: 100%;
+    max-height: 150px;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+  .image-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .upload-progress {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+    display: none;
+  }
+  .upload-progress-bar {
+    height: 100%;
+    background: var(--primary);
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .upload-hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
   .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   .login-card { background: #fff; border-radius: 24px; padding: 48px; width: 400px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); text-align: center; }
   .login-logo { font-size: 48px; margin-bottom: 12px; }
@@ -201,6 +249,26 @@
             <option value="rec">👍推荐</option>
           </select>
         </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">菜品图片</div>
+        <input type="hidden" id="dishImage" value="" />
+        <div class="image-upload-wrap" id="imageUploadWrap" onclick="document.getElementById('imageInput').click()">
+          <div class="image-upload-icon">📷</div>
+          <div class="image-upload-text">点击上传菜品图片</div>
+          <div class="upload-hint">支持 JPG、PNG，建议尺寸 400×300</div>
+          <div class="upload-progress" id="uploadProgress">
+            <div class="upload-progress-bar" id="uploadProgressBar"></div>
+          </div>
+        </div>
+        <div id="imagePreviewContainer" style="display:none;margin-top:12px;text-align:center;">
+          <img id="imagePreview" class="image-preview" src="" alt="预览" />
+          <div class="image-actions">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('imageInput').click()">更换图片</button>
+            <button class="btn btn-danger btn-sm" onclick="removeDishImage()">删除</button>
+          </div>
+        </div>
+        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(this)" />
       </div>
       <div class="form-group">
         <div class="form-label">描述</div>
@@ -431,9 +499,97 @@ function openDishModal(id) {
     document.getElementById('dishBadge').value = '';
     document.getElementById('dishAvailable').checked = true;
     document.getElementById('dishCat').value = '';
+    // 清空图片
+    document.getElementById('dishImage').value = '';
+    resetImageUpload();
   }
   document.getElementById('dishCat').innerHTML = allCategories.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
   document.getElementById('dishModal').classList.add('open');
+}
+
+// =========== 图片上传 ===========
+let uploading = false;
+
+function handleImageSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  // 预览本地图片
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('imagePreview').src = e.target.result;
+    document.getElementById('imagePreviewContainer').style.display = 'block';
+    document.getElementById('imageUploadWrap').classList.add('has-image');
+  };
+  reader.readAsDataURL(file);
+  
+  // 上传到服务器
+  uploadImage(file);
+}
+
+async function uploadImage(file) {
+  if (uploading) return;
+  uploading = true;
+  
+  const progressEl = document.getElementById('uploadProgress');
+  const progressBar = document.getElementById('uploadProgressBar');
+  progressEl.style.display = 'block';
+  progressBar.style.width = '30%';
+  
+  const formData = new FormData();
+  formData.append('image', file);
+  
+  try {
+    const res = await fetch(API + '/upload/image', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData,
+    });
+    
+    const data = await res.json();
+    progressBar.style.width = '100%';
+    
+    if (data.code === 0) {
+      document.getElementById('dishImage').value = data.data.url;
+      toast('图片上传成功', 'success');
+    } else {
+      toast('上传失败: ' + data.msg, 'error');
+      resetImageUpload();
+    }
+  } catch (err) {
+    toast('上传失败，请重试', 'error');
+    resetImageUpload();
+  } finally {
+    uploading = false;
+    setTimeout(() => {
+      progressEl.style.display = 'none';
+      progressBar.style.width = '0%';
+    }, 500);
+  }
+}
+
+function removeDishImage() {
+  const currentUrl = document.getElementById('dishImage').value;
+  if (currentUrl) {
+    // 删除服务器上的图片
+    fetch(API + '/upload/image', {
+      method: 'DELETE',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token 
+      },
+      body: JSON.stringify({ url: currentUrl }),
+    }).catch(() => {});
+  }
+  document.getElementById('dishImage').value = '';
+  resetImageUpload();
+}
+
+function resetImageUpload() {
+  document.getElementById('imagePreview').src = '';
+  document.getElementById('imagePreviewContainer').style.display = 'none';
+  document.getElementById('imageUploadWrap').classList.remove('has-image');
+  document.getElementById('imageInput').value = '';
 }
 
 async function editDish(id) {
@@ -451,6 +607,17 @@ async function editDish(id) {
   document.getElementById('dishDesc').value = d.description || '';
   document.getElementById('dishTags').value = (d.tags || []).join(',');
   document.getElementById('dishAvailable').checked = !!d.is_available;
+  
+  // 加载现有图片
+  const imageUrl = d.image_url || '';
+  document.getElementById('dishImage').value = imageUrl;
+  if (imageUrl) {
+    document.getElementById('imagePreview').src = location.origin + imageUrl;
+    document.getElementById('imagePreviewContainer').style.display = 'block';
+    document.getElementById('imageUploadWrap').classList.add('has-image');
+  } else {
+    resetImageUpload();
+  }
 }
 
 function closeDishModal() { document.getElementById('dishModal').classList.remove('open'); }
@@ -466,6 +633,7 @@ async function saveDish() {
     description: document.getElementById('dishDesc').value.trim(),
     tags: document.getElementById('dishTags').value.split(',').map(t => t.trim()).filter(Boolean),
     is_available: document.getElementById('dishAvailable').checked ? 1 : 0,
+    image_url: document.getElementById('dishImage').value || '',
   };
   if (!payload.name || !payload.category_id || isNaN(payload.price)) {
     toast('请填写必填项（名称、分类、价格）', 'error'); return;

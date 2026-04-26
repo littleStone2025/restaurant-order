@@ -33,14 +33,14 @@ router.post('/login', (req, res) => {
 // ============ 菜品管理 ============
 // 增
 router.post('/dishes', auth, (req, res) => {
-  const { category_id, name, description, price, emoji, tags, badge, sort_order } = req.body;
+  const { category_id, name, description, price, emoji, tags, badge, sort_order, image_url } = req.body;
   if (!category_id || !name || !price) return res.status(400).json({ code: 400, msg: '缺少必填字段', data: null });
   try {
     const r = db.prepare(`
-      INSERT INTO dishes (category_id, name, description, price, emoji, tags, badge, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO dishes (category_id, name, description, price, emoji, tags, badge, sort_order, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(category_id, name, description || '', price, emoji || '🍽️',
-           JSON.stringify(tags || []), badge || null, sort_order || 0);
+           JSON.stringify(tags || []), badge || null, sort_order || 0, image_url || '');
     res.json({ code: 0, msg: '菜品创建成功', data: { id: r.lastInsertRowid } });
   } catch (err) {
     res.status(500).json({ code: 500, msg: err.message, data: null });
@@ -49,7 +49,7 @@ router.post('/dishes', auth, (req, res) => {
 
 // 改
 router.put('/dishes/:id', auth, (req, res) => {
-  const { name, description, price, emoji, tags, badge, is_available, sort_order } = req.body;
+  const { name, description, price, emoji, tags, badge, is_available, sort_order, image_url } = req.body;
   try {
     const fields = [];
     const params = [];
@@ -61,6 +61,7 @@ router.put('/dishes/:id', auth, (req, res) => {
     if (badge !== undefined) { fields.push('badge=?'); params.push(badge); }
     if (is_available !== undefined) { fields.push('is_available=?'); params.push(is_available); }
     if (sort_order !== undefined) { fields.push('sort_order=?'); params.push(sort_order); }
+    if (image_url !== undefined) { fields.push('image_url=?'); params.push(image_url); }
 
     if (fields.length === 0) return res.status(400).json({ code: 400, msg: '无更新字段', data: null });
     params.push(req.params.id);
