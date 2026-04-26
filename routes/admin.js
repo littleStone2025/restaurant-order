@@ -146,4 +146,27 @@ router.get('/stats', auth, (req, res) => {
   }
 });
 
+// 近 7 天每日订单统计
+router.get('/stats/daily', auth, (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const result = {};
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const date = d.toISOString().slice(0, 10);
+      const row = db.prepare(`
+        SELECT COUNT(*) as c FROM orders 
+        WHERE DATE(created_at) = ? AND pay_status='paid'
+      `).get(date);
+      result[date] = row.c;
+    }
+    
+    res.json({ code: 0, msg: 'success', data: result });
+  } catch (err) {
+    res.status(500).json({ code: 500, msg: err.message, data: null });
+  }
+});
+
 module.exports = router;
