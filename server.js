@@ -49,6 +49,7 @@ app.use('/api/dishes', require('./routes/dish'));
 app.use('/api/orders', require('./routes/order'));
 app.use('/api/pay', require('./routes/wxpay'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/upload', require('./routes/upload'));
 
 // ============ 健康检查 ============
 // Railway 健康检查会访问根路径 /
