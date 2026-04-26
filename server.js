@@ -51,6 +51,11 @@ app.use('/api/pay', require('./routes/wxpay'));
 app.use('/api/admin', require('./routes/admin'));
 
 // ============ 健康检查 ============
+// Railway 健康检查会访问根路径 /
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', service: 'restaurant-order-api' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ code: 0, msg: 'ok', data: { version: '1.0.0', env: NODE_ENV } });
 });
