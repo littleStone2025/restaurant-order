@@ -24,6 +24,13 @@
   .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
   .stat-value.green { color: var(--success); }
   .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .chart-container { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); margin-bottom: 24px; }
+  .chart-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding: 0 8px; }
+  .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .chart-bar { width: 100%; background: linear-gradient(180deg, var(--primary), var(--primary-dark)); border-radius: 6px 6px 0 0; min-height: 4px; transition: height 0.3s; }
+  .chart-bar.today { background: linear-gradient(180deg, var(--success), #27ae60); }
+  .chart-label { font-size: 11px; color: var(--muted); }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 10px 12px; font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 2px solid var(--border); }
   td { padding: 12px; font-size: 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -59,7 +66,13 @@
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.error { background: rgba(231,76,60,0.95); }
   .toast.success { background: rgba(46,204,113,0.95); }
+  .toast.info { background: rgba(52,152,219,0.95); }
   .empty-state { text-align: center; padding: 48px; color: var(--muted); }
+  .notification-badge { position: fixed; top: 20px; right: 20px; background: var(--danger); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 400; display: none; animation: pulse 2s infinite; cursor: pointer; }
+  .notification-badge:hover { opacity: 0.9; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  .new-order-indicator { display: inline-block; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; margin-left: 8px; animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
   
   /* 图片上传样式 */
   .image-upload-wrap {
@@ -160,6 +173,10 @@
         <button class="btn btn-outline btn-sm" onclick="loadStats()">🔄 刷新</button>
       </div>
       <div class="stats-grid" id="statsGrid"></div>
+      <div class="chart-container">
+        <div class="chart-title">📈 近 7 天订单趋势</div>
+        <div class="chart-bars" id="chartBars"></div>
+      </div>
       <div class="card">
         <div class="card-title">🏃 今日待处理订单</div>
         <table id="pendingOrdersTable"><thead><tr><th>订单号</th><th>桌号</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr></thead><tbody id="pendingOrdersBody"></tbody></table>
@@ -292,6 +309,22 @@
   </div>
 </div>
 
+<!-- 订单详情弹窗 -->
+<div class="modal-overlay" id="orderDetailModal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <span>📋 订单详情</span>
+      <button class="modal-close" onclick="closeOrderDetailModal()">✕</button>
+    </div>
+    <div class="modal-body" id="orderDetailContent">
+      <!-- 动态填充 -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeOrderDetailModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 分类编辑弹窗 -->
 <div class="modal-overlay" id="catModal">
   <div class="modal">
@@ -317,6 +350,7 @@
       </div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-danger" id="deleteCatBtn" onclick="deleteCategory()" style="margin-right:auto;display:none">🗑️ 删除</button>
       <button class="btn btn-outline" onclick="closeCatModal()">取消</button>
       <button class="btn btn-primary" onclick="saveCat()">保存</button>
     </div>
@@ -324,6 +358,11 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 新订单通知 -->
+<div class="notification-badge" id="newOrderBadge" onclick="handleNewOrderClick()">
+  🔔 <span id="newOrderCount">0</span> 个新订单
+</div>
 
 <script>
 const API = location.origin + '/api';
@@ -365,8 +404,10 @@ function handleLogin() {
 }
 
 function handleLogout() {
+  stopOrderPolling();
   token = '';
   localStorage.removeItem('admin_token');
+  lastOrderId = null;
   document.getElementById('adminPage').style.display = 'none';
   document.getElementById('loginPage').style.display = 'flex';
 }
@@ -397,6 +438,9 @@ async function loadStats() {
     <div class="stat-card"><div class="stat-label">菜品总数</div><div class="stat-value green">${s.totalDishes.c}</div><div class="stat-sub">${s.totalCategories.c} 个分类</div></div>
   `;
 
+  // 加载图表数据
+  loadOrderChart();
+
   // 加载待处理订单
   const ordersRes = await api('/admin/orders?status=cooking&pageSize=10');
   if (ordersRes.code === 0 && ordersRes.data.list.length) {
@@ -405,6 +449,50 @@ async function loadStats() {
   } else {
     document.getElementById('pendingOrdersBody').innerHTML = '';
     document.getElementById('pendingEmpty').style.display = 'block';
+  }
+}
+
+// =========== 订单趋势图表 ===========
+async function loadOrderChart() {
+  const chartEl = document.getElementById('chartBars');
+  const today = new Date();
+  const days = [];
+  
+  // 获取近 7 天数据
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    days.push({
+      date: d.toISOString().slice(0, 10),
+      label: (i === 0 ? '今' : d.getDate() + '日'),
+      isToday: i === 0
+    });
+  }
+  
+  // 查询每天的订单数
+  try {
+    const res = await api('/admin/stats/daily?days=7');
+    const data = res.data || {};
+    
+    const maxCount = Math.max(...days.map(d => data[d.date] || 0), 1);
+    
+    chartEl.innerHTML = days.map(d => {
+      const count = data[d.date] || 0;
+      const height = Math.max((count / maxCount) * 100, 8);
+      return `<div class="chart-bar-wrap">
+        <div class="chart-bar ${d.isToday ? 'today' : ''}" style="height:${height}px"></div>
+        <div class="chart-label">${d.label}</div>
+        <div style="font-size:11px;color:var(--primary);font-weight:600">${count}</div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    // 降级：显示空图表
+    chartEl.innerHTML = days.map(d => `
+      <div class="chart-bar-wrap">
+        <div class="chart-bar ${d.isToday ? 'today' : ''}" style="height:8px"></div>
+        <div class="chart-label">${d.label}</div>
+        <div style="font-size:11px;color:var(--primary);font-weight:600">0</div>
+      </div>`).join('');
   }
 }
 
@@ -426,8 +514,8 @@ function orderRow(o, mini) {
   const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
   const names = items.map(i => i.name + '×' + i.qty).join('、');
   const act = mini
-    ? `<button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')">完成</button>`
-    : `<button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')" ${o.status==='done'?'disabled':''}>完成</button>`;
+    ? `<button class="btn btn-primary btn-sm" onclick="showOrderDetail('${o.order_id}')">详情</button> <button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')">完成</button>`
+    : `<button class="btn btn-primary btn-sm" onclick="showOrderDetail('${o.order_id}')">详情</button> <button class="btn btn-success btn-sm" onclick="updateOrderStatus('${o.order_id}','done')" ${o.status==='done'?'disabled':''}>完成</button>`;
   return `<tr>
     <td><b>${o.order_id}</b><br><small style="color:var(--muted)">${names.slice(0,30)}${names.length>30?'...':''}</small></td>
     <td>${o.table_no}号桌</td>
@@ -437,6 +525,70 @@ function orderRow(o, mini) {
     <td><small>${o.created_at?.slice(0,16)||''}</small></td>
     <td>${act}</td>
   </tr>`;
+}
+
+// =========== 订单详情 ===========
+async function showOrderDetail(orderId) {
+  const res = await api('/orders/' + orderId);
+  if (res.code !== 0) { toast('加载失败: ' + res.msg, 'error'); return; }
+  const o = res.data;
+  const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+  
+  let html = `
+    <div style="margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><span style="color:var(--muted)">订单号：</span><b>${o.order_id}</b></div>
+        <div><span style="color:var(--muted)">桌号：</span><b>${o.table_no}号桌</b></div>
+        <div><span style="color:var(--muted)">下单时间：</span><small>${o.created_at||''}</small></div>
+        <div><span style="color:var(--muted)">支付：</span><span class="badge ${o.pay_status}">${o.pay_status === 'paid' ? '✅已付' : '⏳未付'}</span></div>
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-weight:700;margin-bottom:8px">📝 订单内容</div>
+      <table style="width:100%">
+        <thead><tr><th>菜品</th><th>单价</th><th>数量</th><th>小计</th></tr></thead>
+        <tbody>
+  `;
+  
+  items.forEach(item => {
+    html += `<tr>
+      <td>${item.name}</td>
+      <td>¥${parseFloat(item.price).toFixed(2)}</td>
+      <td>×${item.qty}</td>
+      <td>¥${parseFloat(item.price * item.qty).toFixed(2)}</td>
+    </tr>`;
+  });
+  
+  html += `</tbody></table></div>`;
+  
+  // 费用明细
+  html += `
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>小计</span><span>¥${parseFloat(o.sub_total || 0).toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span>服务费 (5%)</span><span>¥${parseFloat(o.service_fee || 0).toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;color:var(--primary)">
+        <span>实付金额</span><span>¥${parseFloat(o.total).toFixed(2)}</span>
+      </div>
+    </div>
+  `;
+  
+  // 备注
+  if (o.note) {
+    html += `<div style="margin-top:12px;padding:10px;background:#fff8e6;border-radius:8px">
+      <span style="color:var(--muted)">📝 备注：</span>${o.note}
+    </div>`;
+  }
+  
+  document.getElementById('orderDetailContent').innerHTML = html;
+  document.getElementById('orderDetailModal').classList.add('open');
+}
+
+function closeOrderDetailModal() {
+  document.getElementById('orderDetailModal').classList.remove('open');
 }
 
 function statusText(s) {
@@ -658,6 +810,7 @@ async function toggleDish(id, available) {
 function openCatModal(id) {
   document.getElementById('catId').value = id || '';
   document.getElementById('catModalTitle').textContent = id ? '编辑分类' : '新增分类';
+  document.getElementById('deleteCatBtn').style.display = id ? 'block' : 'none';
   if (!id) {
     document.getElementById('catName').value = '';
     document.getElementById('catEmoji').value = '';
@@ -678,6 +831,21 @@ async function editCat(id) {
 
 function closeCatModal() { document.getElementById('catModal').classList.remove('open'); }
 
+async function deleteCategory() {
+  const id = document.getElementById('catId').value;
+  if (!id) return;
+  if (!confirm('确定要删除这个分类吗？分类下的菜品将变为"未分类"。')) return;
+  try {
+    const res = await api('/categories/' + id, { method: 'DELETE' });
+    if (res.code !== 0) { toast('删除失败: ' + res.msg, 'error'); return; }
+    toast('删除成功', 'success');
+    closeCatModal();
+    loadCategories();
+  } catch (err) {
+    toast('删除失败', 'error');
+  }
+}
+
 async function saveCat() {
   const id = document.getElementById('catId').value;
   const payload = {
@@ -695,12 +863,94 @@ async function saveCat() {
   loadCategories();
 }
 
+// =========== 实时订单轮询 ===========
+let lastOrderId = null;
+let pollTimer = null;
+let newOrders = [];
+
+function startOrderPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(checkNewOrders, 10000); // 每 10 秒检查一次
+  checkNewOrders(); // 立即检查一次
+}
+
+function stopOrderPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function checkNewOrders() {
+  if (!token) return;
+  try {
+    const res = await api('/admin/orders?status=cooking&pageSize=5');
+    if (res.code !== 0) return;
+    
+    const orders = res.data.list || [];
+    if (orders.length === 0) {
+      hideNewOrderBadge();
+      return;
+    }
+    
+    const firstOrderId = orders[0]?.order_id;
+    if (lastOrderId && firstOrderId && firstOrderId !== lastOrderId) {
+      // 有新订单
+      newOrders = orders.filter(o => o.order_id !== lastOrderId);
+      if (newOrders.length > 0) {
+        showNewOrderBadge(newOrders.length);
+        // 自动刷新待处理订单
+        if (currentTab === 'dashboard') {
+          document.getElementById('pendingOrdersBody').innerHTML = orders.map(o => orderRow(o, true)).join('');
+          document.getElementById('pendingEmpty').style.display = 'none';
+          // 高亮新订单
+          newOrders.forEach(o => {
+            const row = document.querySelector(`tr[data-order="${o.order_id}"]`);
+            if (row) {
+              row.style.background = '#fff3cd';
+              setTimeout(() => row.style.background = '', 3000);
+            }
+          });
+        }
+      }
+    }
+    lastOrderId = firstOrderId;
+  } catch (err) {
+    console.error('轮询失败:', err);
+  }
+}
+
+function showNewOrderBadge(count) {
+  const badge = document.getElementById('newOrderBadge');
+  document.getElementById('newOrderCount').textContent = count;
+  badge.style.display = 'block';
+  // 播放提示音（可选）
+  try {
+    // 简单的提示音
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleV4xWYi5wKRRTTs3WqvS3qZbKDZgrtzWpGAcBjmR1tahXyk1Y63c2ahdKTlkq9/dp2AdDDWL2NKnYyA3Yq7d3Kt0YzVbnLvnxJlzZjpfn73oz5x7aT9hnsLm1qN1b0hfl8bm1KJ7dE1fltDj1qR+eFViktLm1qN8eVtggs/l1aaCfF5les7m1qeFfGJKYOPI5+6tgH1oVHDr');
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  } catch (e) {}
+}
+
+function hideNewOrderBadge() {
+  document.getElementById('newOrderBadge').style.display = 'none';
+  newOrders = [];
+}
+
+function handleNewOrderClick() {
+  hideNewOrderBadge();
+  switchTab('dashboard');
+  loadStats();
+}
+
 // =========== 启动检查 ===========
 if (token) {
   document.getElementById('loginPage').style.display = 'none';
   document.getElementById('adminPage').style.display = 'flex';
   loadStats();
   loadCategories();
+  startOrderPolling();
 }
 </script>
 </body>

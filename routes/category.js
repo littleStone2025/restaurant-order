@@ -33,4 +33,17 @@ router.get('/:id', (req, res) => {
   }
 });
 
+// DELETE /api/categories/:id
+router.delete('/:id', (req, res) => {
+  try {
+    const result = db.prepare('UPDATE categories SET is_deleted = 1 WHERE id = ?').run(req.params.id);
+    if (result.changes === 0) return res.status(404).json({ code: 404, msg: '分类不存在', data: null });
+    // 同时将菜品设置为未分类
+    db.prepare('UPDATE dishes SET category_id = 0 WHERE category_id = ?').run(req.params.id);
+    res.json({ code: 0, msg: '删除成功', data: null });
+  } catch (err) {
+    res.status(500).json({ code: 500, msg: err.message, data: null });
+  }
+});
+
 module.exports = router;
