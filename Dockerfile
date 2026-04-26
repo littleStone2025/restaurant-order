@@ -15,12 +15,13 @@ COPY . .
 # 创建数据目录
 RUN mkdir -p data
 
-# 暴露端口
-EXPOSE 3000
+# Railway 使用 PORT 环境变量
+ENV PORT=3000
+EXPOSE $PORT
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+# 健康检查 - 使用根路径
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:${PORT}/ || exit 1
 
-# 启动
+# 启动 - 使用 PORT 环境变量
 CMD ["node", "server.js"]
